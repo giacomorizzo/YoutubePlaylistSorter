@@ -21,6 +21,7 @@ import httplib2
 import os
 import sys
 import isodate
+import datetime
 
 from apiclient.discovery import build
 from oauth2client.client import flow_from_clientsecrets
@@ -107,32 +108,36 @@ for channel in channels_response["items"]:
                 part = "contentDetails"
             ).execute()
 
-            new_video['duration'] = isodate.parse_duration(videos_response['items'][0]['contentDetails']['duration'])
-        
-            for video in videos:
-                if video['duration'] > new_video['duration']:
-                    videos.insert(videos.index(video), new_video)
-                
-                    snippet = {
-                        'position': videos.index(new_video),
-                        'resourceId': new_video['resourceId'],
-                        'playlistId': watchlater_list_id
-                    }
+	    if not len(videos_response['items']):
+		# Most likely a deleted video... setting a fake duration to surface it
+		new_video['duration'] = datetime.timedelta(minutes=0)
+	    else:
+                new_video['duration'] = isodate.parse_duration(videos_response['items'][0]['contentDetails']['duration'])
+	
+	    for video in videos:
+		if video['duration'] > new_video['duration']:
+		    videos.insert(videos.index(video), new_video)
+		
+		    snippet = {
+			'position': videos.index(new_video),
+			'resourceId': new_video['resourceId'],
+			'playlistId': watchlater_list_id
+		    }
 
-                    playlistitems_list_request = youtube.playlistItems().update(
-                        part = "snippet",
-                        body = { 
-                            'id': playlist_item['id'],
-                            'snippet': snippet
-                        }
-                    ).execute()
+		    playlistitems_list_request = youtube.playlistItems().update(
+			part = "snippet",
+			body = { 
+			    'id': playlist_item['id'],
+			    'snippet': snippet
+			}
+		    ).execute()
 
-                    break
-            else:
-                videos.append(new_video)
+		    break
+	    else:
+		videos.append(new_video)
 
         playlistitems_list_request = youtube.playlistItems().list_next(
             playlistitems_list_request, playlistitems_list_response)
 
     for video in videos:
-        print "{0} - {1}".format(video['duration'], video['title'])
+        print "{0} - {1}".format(video['duration'], video['title'].encode('ascii', 'replace'))
